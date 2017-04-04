@@ -12,7 +12,8 @@ from tensorflow.contrib.layers import *
 
 import pickle
 import sys
-
+from pylab import *
+import matplotlib.pyplot as plt
 
 
 parser = ArgumentParser(formatter_class=ArgumentDefaultsHelpFormatter)
@@ -30,7 +31,7 @@ tf.set_random_seed(RNG_SEED)
 env.seed(RNG_SEED)
 
 hidden_size = 2
-alpha = 1e-3
+alpha = 5e-4
 TINY = 1e-8
 gamma = 0.99
 
@@ -123,10 +124,12 @@ MAX_STEPS = env.spec.tags.get('wrapper_config.TimeLimit.max_episode_steps')
 
 steps = []
 ret = []
-mean = []
+means = []
+weight_store = []
 #MAX_STEPS = 5
 track_returns = []
-for ep in range(6000):
+avg_steps = 20
+for ep in range(500):
     obs = env.reset()
 
     G = 0
@@ -168,13 +171,20 @@ for ep in range(6000):
     mean_return = np.mean(track_returns)
     print("Episode {} finished after {} steps with return {}".format(ep, t, G))
     
-    print("Mean return over the last {} episodes is {}".format(MEMORY,
-                                                               mean_return))
+    print("Mean return over the last {} episodes is {}".format(MEMORY, mean_return))
+
+    if len(steps) <= avg_steps:
+        a = np.average(steps)
+    else: 
+        a = np.average(steps[-avg_steps:])
     
+    print(a)
+    with tf.variable_scope("hidden", reuse=True):
+        weight_store.append(sess.run(tf.get_variable("weights")))
     ret.append(G)
     steps.append(t)
-    mean.append(mean_return)
-
+    means.append(mean_return)
+    
     #with tf.variable_scope("mus", reuse=True):
         #print("incoming weights for the mu's from the first hidden unit:", sess.run(tf.get_variable("weights"))[0,:])
 
@@ -183,6 +193,21 @@ if save:
     snapshot = {}
     snapshot["steps"] = steps
     snapshot["ret"] = ret
-    snapshot["mean"] = mean
-    pickle.dump(snapshot,  open("new_snapshot_steps.pkl", "wb"))
+    snapshot["weights"] = weight_store
+    pickle.dump(snapshot,  open("new_snapshot_weights_2.pkl", "wb"))
+    
+e = np.arange(1, len(steps)+1)
+mem = 25
+means = []
+for i in range(0, mem):
+    means.append(np.sum(ret[:i])/mem)
+    
+for i in range(mem, len(steps)):
+    means.append(np.sum(ret[i-mem:i])/mem)
+    
+plt.plot(e, means, 'b-', label="Means")
+
+
+#plt.plot(e, np.array(weight_store)[:, :, 0], 'b-', label="Weights")
+
 sess.close()
